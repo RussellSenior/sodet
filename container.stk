@@ -41,7 +41,6 @@
                    :relief "flat"
                    :indicator-on #t
                    :relief "raised"))
-;                   :bitmap (& "@" *STk-library* "/images/menu.bm")))
          (m (make <Menu> :parent mb)))
 
     (pack l sb :side "left" :anchor "nw" :pady 5 :fill "x" :expand #t)

@@ -18,26 +18,6 @@
   (cond 
    ((string->number value)
     (string->number value))
-   ;;   ((string-find? "~" value)
-   ;;    (get-number-from-string (string-remove value "~")))
-   ;;   ((string-find? " ft" value)
-   ;;    (get-number-from-string (string-remove value " ft")))
-   ;;   ((string-find? " F" value)
-   ;;    (get-number-from-string (string-remove value " F")))
-   ;;   ((string-find? " C" value)
-   ;;    (let ((val (get-number-from-string (string-remove value " C"))))
-   ;;      (if (number? val)
-   ;;          (+ 32 (* 180/100 val)))))
-   ;;   ((string-find? " acres" value)
-   ;;    (let ((val (get-number-from-string (string-remove value " acres"))))
-   ;;      (if (number? val)
-   ;;          (* 43560 val)
-   ;;          val)))
-   ;;   ((string-find? " acre" value)
-   ;;    (let ((val (get-number-from-string (string-remove value " acre"))))
-   ;;      (if (number? val)
-   ;;          (* 43560 val)
-   ;;          val)))
    (else value)))   
     
 
@@ -96,11 +76,6 @@
             (hash-table-get slot-ht value))))))
 
 (define (set-pre-overrides ht)
-  ;;  (set-holder ht '<wirecode-checklist> 'wirecode "vhcc" 1)
-  ;;  (set-holder ht '<wirecode-checklist> 'wirecode "ohcc" 2)
-  ;;  (set-holder ht '<wirecode-checklist> 'wirecode "olcc" 3)
-  ;;  (set-holder ht '<wirecode-checklist> 'wirecode "vlcc" 4)
-  ;;  (set-holder ht '<wirecode-checklist> 'wirecode "underground" 5)
   #f)
 
 (define (set-post-overrides ht)
@@ -402,9 +377,3 @@
     (format port "~%")))
 
 (provide "recode-tools")
-
-
-
-
-
-

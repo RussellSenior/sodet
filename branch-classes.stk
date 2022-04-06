@@ -265,9 +265,6 @@
                          (obj2 <visit>))
   (compare-string-slots obj1 obj2 'subject-number))
 
-
-
-
 (provide "branch-classes")
 
 

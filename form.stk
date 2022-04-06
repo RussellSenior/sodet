@@ -208,18 +208,11 @@
                   (label (label-of (lentry-of field))))
              
              (let* ((entry (entry-of field)))
-;                    (bs-closure (car (bind "Entry" "<BackSpace>"))))
                
                (bind entry 
                      "<Return>" 
                      (lambda ()
                        (focus-next-choicebox field-group field)))
-               
-;                (bind entry 
-;                      "<Delete>" 
-;                      (lambda (|W|) 
-;                        (bs-closure |W|)
-;                        'break))
                
                (bind entry 
                      "<Tab>" 
