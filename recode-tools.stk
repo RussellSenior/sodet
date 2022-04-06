@@ -1,0 +1,410 @@
+(define (string-remove string substr)
+  (let ((index (string-index substr string)))
+    (if index
+        (string-append (substring string 0 index)
+                       (substring string 
+                                  (+ index (string-length substr))
+                                  (string-length string)))
+        string)))
+
+(define (remove-suffix string suffix)
+  (let ((index (string-index suffix string)))
+    (if (and index (= (+ index (string-length suffix))
+                      (string-length string)))
+        (substring string 0 index)
+        string)))
+
+(define (get-number-from-string value)
+  (cond 
+   ((string->number value)
+    (string->number value))
+   ;;   ((string-find? "~" value)
+   ;;    (get-number-from-string (string-remove value "~")))
+   ;;   ((string-find? " ft" value)
+   ;;    (get-number-from-string (string-remove value " ft")))
+   ;;   ((string-find? " F" value)
+   ;;    (get-number-from-string (string-remove value " F")))
+   ;;   ((string-find? " C" value)
+   ;;    (let ((val (get-number-from-string (string-remove value " C"))))
+   ;;      (if (number? val)
+   ;;          (+ 32 (* 180/100 val)))))
+   ;;   ((string-find? " acres" value)
+   ;;    (let ((val (get-number-from-string (string-remove value " acres"))))
+   ;;      (if (number? val)
+   ;;          (* 43560 val)
+   ;;          val)))
+   ;;   ((string-find? " acre" value)
+   ;;    (let ((val (get-number-from-string (string-remove value " acre"))))
+   ;;      (if (number? val)
+   ;;          (* 43560 val)
+   ;;          val)))
+   (else value)))   
+    
+
+(define (set-holder ht cname sname value index)
+  (let ((class-ht (hash-table-get ht 
+                                  cname 
+                                  (make-hash-table equal?))))
+    (let ((slot-ht (hash-table-get class-ht 
+                                   sname 
+                                   (make-hash-table equal?))))
+      (hash-table-put! slot-ht value index)
+      (hash-table-put! class-ht sname slot-ht)
+      (hash-table-put! ht cname class-ht))))
+
+(define (select pred list)
+  (cond ((null? list)
+         '())
+        ((pred (car list))
+         (cons (car list)
+               (select pred (cdr list))))
+        (else (select pred (cdr list)))))
+
+
+(define (get-minimum-numeric-value ht)
+  (let ((min #f))
+    (hash-table-for-each 
+     ht
+     (lambda (cname class-ht)
+       (hash-table-for-each
+        class-ht
+        (lambda (slot-name slot-ht)
+          (let ((value-list (map car (hash-table->list slot-ht))))
+            (let ((numeric-values (sort (select number? value-list) 
+                                        (lambda (v1 v2) (< v1 v2))))
+                  (text-values (sort (select (lambda (v) 
+                                               (not (number? v))) 
+                                             value-list)
+                                     (lambda (v1 v2) (string-ci<? v1 v2)))))
+              (when (and (not (null? numeric-values))
+                         (or (not min)
+                             (< (car numeric-values) min)))
+                    (set! min (car numeric-values)))
+	      ))))))
+    min))
+
+(define (recode ht object sname)
+  (let ((value (get-slot-value object sname)))
+    (if (number? value)
+        value
+        (let ((class-ht (hash-table-get ht 
+                                        (class-name (class-of object))
+                                        (make-hash-table equal?))))
+          (let ((slot-ht (hash-table-get class-ht 
+                                         sname 
+                                         (make-hash-table equal?))))
+            (hash-table-get slot-ht value))))))
+
+(define (set-pre-overrides ht)
+  ;;  (set-holder ht '<wirecode-checklist> 'wirecode "vhcc" 1)
+  ;;  (set-holder ht '<wirecode-checklist> 'wirecode "ohcc" 2)
+  ;;  (set-holder ht '<wirecode-checklist> 'wirecode "olcc" 3)
+  ;;  (set-holder ht '<wirecode-checklist> 'wirecode "vlcc" 4)
+  ;;  (set-holder ht '<wirecode-checklist> 'wirecode "underground" 5)
+  #f)
+
+(define (set-post-overrides ht)
+  #f)
+
+
+(define (setup-mapping-table ht) 
+  (hash-table-for-each 
+   ht
+   (lambda (cname class-ht)
+     (hash-table-for-each
+      class-ht
+      (lambda (sname slot-ht)
+        (let* ((table-list (hash-table->list slot-ht))
+               (value-list (map car table-list)))
+          (let ((numeric-values (sort (select number? value-list) 
+                                      (lambda (v1 v2) (< v1 v2))))
+                (text-values (sort (select (lambda (v) 
+                                             (not (number? v)))
+                                           value-list)
+                                   (lambda (v1 v2) (string-ci<? v1 v2)))))
+            (when (member "unresolved" text-values)
+                  (hash-table-put! slot-ht "unresolved" -999)
+                  (set! text-values (list-without "unresolved" text-values)))
+            (when (member "unavailable" text-values)
+                  (hash-table-put! slot-ht "unavailable" -998)
+                  (set! text-values (list-without "unavailable" text-values)))
+            (when (member "not applicable" text-values)
+                  (hash-table-put! slot-ht "not applicable" -997)
+                  (set! text-values (list-without "not applicable" text-values)))
+            (when (member "unanswered" text-values)
+                  (hash-table-put! slot-ht "unanswered" -996)
+                  (set! text-values (list-without "unanswered" text-values)))
+	    
+            (let* ((pre-hashed (select (lambda (v) (cdr v)) table-list))
+                   (pre-hashed-values (sort (map cdr pre-hashed)
+                                            (lambda (v1 v2) (< v1 v2))))
+                   (max (if (not (null? pre-hashed-values))
+                            (car (reverse pre-hashed-values))
+                            (if (null? numeric-values)
+                                0
+                                -996))))
+	      
+              (let loop ((values text-values)
+                         (next-index (+ max 1)))
+		
+                (when (not (null? values))
+                      (let ((index (hash-table-get slot-ht 
+                                                   (car values) 
+                                                   #f)))
+                        (if (not index)
+                            (hash-table-put! slot-ht 
+                                             (car values) 
+                                             next-index))
+			
+                        (loop (cdr values)
+                              (+ 1 next-index)))))))))))))
+
+(define (dump-mapping-table ht) 
+  (hash-table-for-each 
+   ht
+   (lambda (cname class-ht)
+     (hash-table-for-each
+      class-ht
+      (lambda (sname slot-ht)
+        (let ((value-list (map car (hash-table->list slot-ht))))
+          (let ((numeric-values (sort (select number? value-list) 
+                                      (lambda (v1 v2) (< v1 v2))))
+                (text-values (sort (select (lambda (v) 
+                                             (not (number? v)))
+                                           value-list)
+                                   (lambda (v1 v2) (string-ci<? v1 v2)))))
+            (when (member "unresolved" text-values)
+                  (set! text-values (list-without "unresolved" text-values))
+                  (format #t "~A ~A: ~A = ~S~%"
+                          cname
+                          sname
+                          -999
+                          "unresolved"))
+            (when (member "unavailable" text-values)
+                  (set! text-values (list-without "unavailable" text-values))
+                  (format #t "~A ~A: ~A = ~S~%"
+                          cname
+                          sname
+                          -998
+                          "unavailable"))
+            (when (member "not applicable" text-values)
+                  (set! text-values (list-without "not applicable" text-values))
+                  (format #t "~A ~A: ~A = ~S~%"
+                          cname
+                          sname
+                          -997
+                          "not applicable"))
+            (when (member "unanswered" text-values)
+                  (set! text-values (list-without "unanswered" text-values))
+                  (format #t "~A ~A: ~A = ~S~%"
+                          cname
+                          sname
+                          -996
+                          "unanswered"))
+            
+            (when (not (null? numeric-values))
+                  (format #t "~A ~A numeric range: ~A to ~A~%"
+                          cname
+                          sname
+                          (car numeric-values)
+                          (car (reverse numeric-values))))
+            
+            (for-each
+             (lambda (value)
+               (format #t "~A ~A: ~A = ~S~%"
+                       cname
+                       sname
+                       (hash-table-get slot-ht value)
+                       value))
+             text-values))))))))
+
+(define delimiter #\tab)
+
+(define (dump-mapping-table2 ht) 
+  (hash-table-for-each 
+   ht
+   (lambda (cname class-ht)
+     (hash-table-for-each
+      class-ht
+      (lambda (sname slot-ht)
+        (let ((value-list (map car (hash-table->list slot-ht))))
+          (let ((value-number 0)
+                (numeric-values (sort (select number? value-list) 
+                                      (lambda (v1 v2) (< v1 v2))))
+                (text-values (sort (select (lambda (v) 
+                                             (not (number? v)))
+                                           value-list)
+                                   (lambda (v1 v2) (string-ci<? v1 v2)))))
+	    
+            (when (member "unresolved" text-values)
+                  (set! value-number (+ value-number 1))
+                  (set! text-values (list-without "unresolved" text-values))
+                  (when (= value-number 1)
+                        (format #t "f~A~A ~A" delimiter cname sname))
+                  (format #t "~A~A = ~S" delimiter
+                          -999
+                          "unresolved"))
+            (when (member "unavailable" text-values)
+                  (set! value-number (+ value-number 1))
+                  (set! text-values (list-without "unavailable" text-values))
+                  (when (= value-number 1)
+                        (format #t "f~A~A ~A" delimiter cname sname))
+                  (format #t "~A~A = ~S" delimiter
+                          -998
+                          "unavailable"))
+            (when (member "not applicable" text-values)
+                  (set! value-number (+ value-number 1))
+                  (set! text-values (list-without "not applicable" text-values))
+                  (when (= value-number 1)
+                        (format #t "f~A~A ~A" delimiter cname sname))
+                  (format #t "~A~A = ~S" delimiter
+                          -997
+                          "not applicable"))
+            (when (member "unanswered" text-values)
+                  (set! value-number (+ value-number 1))
+                  (set! text-values (list-without "unanswered" text-values))
+                  (when (= value-number 1)
+                        (format #t "f~A~A ~A" delimiter cname sname))
+                  (format #t "~A~A = ~S" delimiter
+                          -996
+                          "unanswered"))
+            
+            (when (not (null? numeric-values))
+                  (set! value-number (+ value-number 1))
+                  (when (= value-number 1)
+                        (format #t "f~A~A ~A" delimiter cname sname))
+                  (format #t "~A~A to ~A" delimiter
+                          (car numeric-values)
+                          (car (reverse numeric-values))))
+            
+            (for-each
+             (lambda (value)
+               (set! value-number (+ value-number 1))
+               (when (= value-number 1)
+                     (format #t "f~A~A ~A" delimiter cname sname))
+               (format #t "~A~A = ~S" delimiter
+                       (hash-table-get slot-ht value)
+                       value))
+             text-values)
+            (format #t "~%"))))))))
+
+
+(define (find-first list key pred)
+  (if (null? list)
+      '()
+      (if (equal? (pred (car list))
+                  key)
+          (car list)
+          (find-first (cdr list) key pred))))
+
+
+(define (get-slot-value object sname)
+  (let ((slots (class-slots (class-of object))))
+    (let ((slot (find-first slots sname car)))
+      (if slot
+          (let* ((name (car slot))
+                 (value (slot-ref object name))
+                 (type (get-keyword :type (cdr slot) #f))
+		 (ret (if (or (member type '(:float 
+					     :non-negative-float
+					     :non-negative-floatnum
+					     :non-negative-floatnum
+					     :non-negative-integer
+					     :non-negative-integer
+					     :positive-floatnum
+					     :positive-integer))
+			      (and (not (equal? sname 'comments))
+				   (number? (get-number-from-string value))))
+			  (get-number-from-string value)
+			  value)))
+	    ;;(format #t "sname = ~s ; ret = ~a~%" sname ret)
+	    ret)
+          #f))))
+       
+(define-method aggregate-values ((object <sodet-object>))
+  (for-each
+   (lambda (slot)
+     (let* ((sname (car slot))
+	    (cname (class-name (class-of object)))
+            (value (slot-ref object sname))
+            (type (get-keyword :type (cdr slot) #f)))
+       ;;(format #t "~a ~a ~a ~a~%" sname cname value type)
+       (if (equal? type :list)
+           (for-each
+            (lambda (o)
+              (aggregate-values o))
+            value)
+	   (set-holder *aggregate-holder* 
+		       cname
+		       sname
+		       (get-slot-value object sname)
+		       #f))))
+   (class-slots (class-of object))))
+
+(define-method dump-object ((object <sodet-object>) prefix)
+  (let* ((class (class-name (class-of object)))
+         (cname (symbol->string class))
+         (slot-number 0)
+         (port (hash-table-get *port-ht* class #f)))
+    (when (not port)
+          (hash-table-put! *port-ht* class
+                           (let* ((trimmed (substring cname 
+                                                      1 
+                                                      (- (string-length cname)
+                                                         1)))
+                                  (fname (format #f "~A/relational/~A.out" 
+                                                 (getcwd)
+                                                 trimmed)))
+                             (format #t "opening ~A~%" fname)
+                             (open-output-file fname)))
+          (set! port (hash-table-get *port-ht* class #f)))
+    (format port "~A" prefix)
+    (for-each
+     (lambda (slot)
+       (let* ((sname (car slot))
+              (value (slot-ref object sname))
+              (type (get-keyword :type (cdr slot) #f))
+              (object-number 0))
+         (set! slot-number (+ slot-number 1))
+	 ;(gc) ;; DEBUGGING
+	 (format #t "~a~%" (get-internal-info))
+         (if (equal? type :list)
+             (for-each
+              (lambda (o)
+                (set! object-number (+ object-number 1))
+		(let ((new-prefix
+		       (cond ((string=? cname "<visit>")
+			      (let* ((snumber (recode *aggregate-holder* 
+						      object 
+						      'subject-number))
+				     (sno1 (modulo snumber 100000))
+				     (sno2 (quotient snumber 100000)))
+				(format #f "~a ~a ~a"
+				      sno2
+				      sno1
+				      (recode *aggregate-holder*
+					      object
+					      'visit-number))))
+			     (else ""))))
+		  (format #t "~A~%" new-prefix) ;; DEBUGGING
+		  (dump-object o (if (or (string=? prefix "")
+					 (string=? new-prefix ""))
+				     (format #f "~a~a" prefix new-prefix)
+				     (format #f "~a ~a" prefix new-prefix)))))
+	      value)
+	     (format port 
+                     (if (and (string=? prefix "")
+                              (= slot-number 1))
+                         "~A" 
+                         " ~A")
+                     (recode *aggregate-holder* object sname)))))
+     (class-slots (class-of object)))
+    (format port "~%")))
+
+(provide "recode-tools")
+
+
+
+
+
+

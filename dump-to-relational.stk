@@ -1,0 +1,48 @@
+#!/packages/development/scheme/STk-4.0.1/bin/stk -f
+
+(require "sodet")
+(require "leaf-classes")
+(require "branch-classes")
+(require "container")
+(require "form")
+(require "recode-tools")
+
+(wm 'withdraw *root*)
+
+(define data-filename "datafile.out")
+(define data #f)
+
+(unless (try-load data-filename)
+        (format #t "Creating new database!\n")
+        (set! data (make <database>)))
+
+
+(define *aggregate-holder* #f)
+
+(set! *aggregate-holder* (make-hash-table equal?))
+
+(aggregate-values data)
+
+;;(set-pre-overrides *aggregate-holder*)
+    
+(setup-mapping-table *aggregate-holder*)
+
+;;(set-post-overrides *aggregate-holder*)
+
+(with-output-to-file "recode.key" 
+  (lambda () (dump-mapping-table2 *aggregate-holder*)))
+
+(define *port-ht* #f)
+
+(set! *port-ht* (make-hash-table equal?))
+
+(dump-object data "")
+
+(hash-table-map *port-ht* 
+                (lambda (k v)
+                  (close-output-port v)))
+
+(exit)
+
+
+

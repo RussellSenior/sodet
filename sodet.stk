@@ -1,0 +1,209 @@
+(require "stklos")
+
+;;; list interaction tools ... ought to go into a toolbox somewhere
+
+(define (insert-object-at object list offset)
+  (let ((len (length list)))
+    (when (or (not (number? offset)) 
+              (> offset len))
+          (set! offset len))
+    (when (< offset 0)
+          (set! offset 0)))
+  (let* ((holder (cons "h" list))
+         (previous (list-tail holder offset))
+         (new-cell (cons object (cdr previous))))
+    (set-cdr! previous new-cell)
+    (cdr holder)))
+
+(define (delete-object-at list offset)
+  (let ((last (- (length list) 1)))
+    (when (or (not (number? offset)) 
+              (> offset last))
+          (set! offset last))
+    (when (< offset 0)
+          (set! offset 0)))
+  (let* ((holder (cons "h" list))
+         (previous (list-tail holder offset)))
+    (set-cdr! previous (cddr previous))
+    (cdr holder)))
+
+;;;
+;;; sodet foundation class definitions
+;;;    provision for :growing-list and :list slot types
+;;;
+
+(define-class <sodet-metaclass> (<class>) ())
+
+(define-class <sodet-object> () () :metaclass <sodet-metaclass>)
+
+(define-class <sodet-leaf-object> (<sodet-object>) ())
+
+(define-class <sodet-branch-object> (<sodet-object>) ())
+
+(define *magic* 666)
+
+(define growing-dslots-hash-table (make-hash-table))
+
+(define (sodet-slot-set object slot value)
+  (slot-set! object slot value)
+  (unless (member value *default-values*)
+          (let ((ht (hash-table-get 
+                     (hash-table-get growing-dslots-hash-table 
+                                     (class-of object)) slot #f)))
+            (if ht (hash-table-put! ht value *magic*)))))
+
+(define (sodet-slot-list class slot)
+  (let ((class-ht (hash-table-get growing-dslots-hash-table class #f)))
+    (if class-ht
+        (let ((values-ht (hash-table-get class-ht slot #f)))
+          (if values-ht (hash-table-map values-ht (lambda (key val) key)))))))
+
+(define-generic object<?)
+
+(define-method object<? ((obj1 <sodet-object>) (obj2 <sodet-object>))
+  #f)
+
+(define-method initialize ((class <sodet-metaclass>) initargs)
+  (next-method)
+  (let ((dslots (get-keyword :slots initargs '()))
+        (class-ht (hash-table-get growing-dslots-hash-table class '())))
+    (if (null? class-ht)
+        (begin
+          (set! class-ht (make-hash-table))
+          (hash-table-put! growing-dslots-hash-table class class-ht)))
+    (for-each
+     (lambda (s)
+       (when (pair? s) 
+             (case (get-keyword :type (cdr s) #f)
+               ((:growing-list)
+                (let ((slot-name (symbol->string (car s))))
+                  (let ((values-ht (make-hash-table string=?))
+                        (accessor-symbol (string->symbol slot-name))
+                        (accessor-list-symbol (string->symbol 
+                                               (string-append
+                                                slot-name
+                                                "-list"))))
+                    (hash-table-put! class-ht (car s) values-ht)
+                    (eval `(begin
+                             (define (,accessor-list-symbol class)
+                               (let ((class-ht (hash-table-get growing-dslots-hash-table 
+                                                               class #f)))
+                                 (if class-ht
+                                     (let ((values-ht (hash-table-get class-ht ',(car s) #f)))
+                                       (if values-ht (hash-table->list values-ht) '())))))
+                             (define-method (setter ,accessor-symbol) ((self ,class) v)
+                               (slot-set! self ',accessor-symbol v)
+                               (unless (member v *default-values*)
+                                       (hash-table-put! ,values-ht v *magic*)))
+                             )))))
+               ((:list)
+                (let ((list-spec (get-keyword :list-spec (cdr s) #f)))
+                  (when list-spec
+                        (let ((list-spec-objects (cadr list-spec)))
+                          (let loop ((first (car list-spec-objects))
+                                     (rest (cdr list-spec-objects)))
+                            (let ((before (car first)))
+                              (for-each
+                               (lambda (lso)
+                                 (eval `(define-method object<? 
+                                          ((obj1 ,before) 
+                                           (obj2 ,(car lso))) 
+                                          #t)))
+                               rest))
+                            (unless (null? rest)
+                                    (loop (car rest) (cdr rest)))))))
+                ))))
+     dslots)
+
+    (let ((wait-var (string->symbol (string-append (symbol->string 
+                                                    (class-name class))
+                                                   "-wait-var"))))
+      (eval `(begin 
+               (define ,wait-var #f)
+               (define-method affirm-var ((object ,class))
+                 ',wait-var)
+               (define-method affirmed? ((object ,class))
+                 ,wait-var)
+               (define-method edit-object-affirmed? ((object ,class))
+                 (tkwait 'variable ',wait-var)
+                 ,wait-var))))
+            
+    (eval `(define-method growing-slots ((self ,class))
+             ',(hash-table->list class-ht)))))
+
+(define-method initialize ((object <sodet-object>) initargs)
+  (next-method)
+
+;; initialize :list slots with required elements ...
+;; only do so when there is not init-keyword in the initargs, though!
+
+  (for-each
+   (lambda (slot)
+     (let ((name (car slot))
+           (type (get-keyword :type (cdr slot) #f))
+           (init (get-keyword :init-keyword (cdr slot) #f)))
+       (if (eqv? type :list) 
+           (unless (member init initargs)
+                   (let ((list-spec (get-keyword :list-spec (cdr slot) #f)))
+                     (when list-spec
+                           (let ((list-spec-objects (cadr list-spec)))
+                             (for-each
+                              (lambda (lso)
+                                (let ((o (eval (car lso)))
+                                      (occurence-indicator (cdr lso)))
+                                  (when (null? occurence-indicator)
+                                        (slot-set! object name 
+                                                   (cons (make o)
+                                                         (slot-ref
+                                                          object name))))))
+                              list-spec-objects))))))))
+   (class-slots (class-of object)))
+           
+
+  (for-each
+   (lambda (s)
+     (if (slot-bound? object (car s))
+         (unless (member (slot-ref object (car s)) *default-values*)
+                 (hash-table-put! (cdr s)
+                                  (slot-ref object (car s)) 
+                                  *magic*))))
+   (growing-slots object)))
+
+(define-method print-object ((object <sodet-object>))
+  (format #t " (make ~S\n" (class-name (class-of object)))
+  (for-each
+   (lambda (slot)
+     (let* ((name (car slot))
+            (value (slot-ref object name))
+            (type (get-keyword :type (cdr slot) #f))
+            (init (get-keyword :init-keyword (cdr slot) #f)))
+       (if (eqv? type :list)
+           (begin
+             (format #t "~S (list" init)
+             (for-each
+              (lambda (o)
+                (print-object o))
+              value)
+             (format #t ")"))
+           (if (not (string=? value "unanswered"))
+               (format #t "~S \"~A\"\n" init value)))))
+   (class-slots (class-of object)))
+  (format #t ")"))
+
+(define-macro (compare-string-slots obj1 obj2 slotname) 
+  `(let* ((str1 (slot-ref ,obj1 ,slotname)) 
+          (str2 (slot-ref ,obj2 ,slotname))) 
+     (if (and str1 (or (not str2) (string<? str1 str2)))
+         #t
+         #f)))
+
+(define-macro (compare-number-slots obj1 obj2 slotname) 
+  `(let* ((str1 (slot-ref ,obj1 ,slotname)) 
+          (str2 (slot-ref ,obj2 ,slotname))
+          (num1 (string->number str1))
+          (num2 (string->number str2))) 
+     (if (and num1 (or (not num2) (< num1 num2)))
+        #t
+        #f)))
+
+(provide "sodet")

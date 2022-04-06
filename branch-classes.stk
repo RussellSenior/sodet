@@ -1,0 +1,276 @@
+;;; branch-classes.stk
+
+(require "stklos")
+
+;;; All instance slots begin with the value "unanswered".  Other universal 
+;;; values are "missing" or "unknown".  Slots may take other values, depending 
+;;; on their type.
+
+;; 
+
+;;; <database> branch class definition
+
+(define-class <database> (<sodet-branch-object>)
+  ((visits  :accessor      visits
+            :initform     '()
+            :init-keyword :cards
+            :type         :list
+            :width        20
+            :height       30
+            :list-spec    '((<visit> *)))))
+  
+(define-method name-of ((object <database>))
+  "My Database")
+
+(define-method report-name ((object <database>))
+  (format #f "d~A" (address-of object)))
+
+
+;;; <activity-questions> branch class definition
+
+(define-class <activity-questions> (<sodet-branch-object>)
+  ((deployment-tech :accessor deployment-tech
+                    :initform "unanswered" 
+                    :init-keyword :deployment-tech 
+                    :type :growing-list)
+   (deployment-date :accessor deployment-date
+                    :initform "unanswered" 
+                    :init-keyword :deployment-date
+                    :type :date)
+   (retrieval-tech :accessor retrieval-tech
+                    :initform "unanswered" 
+                    :init-keyword :retrieval-tech 
+                    :type :growing-list)
+   (retrieval-date :accessor retrieval-date
+                    :initform "unanswered" 
+                    :init-keyword :retrieval-date
+                    :type :date)
+   (completion-date :accessor completion-date
+		    :initform "unanswered"
+		    :init-keyword :completion-date
+		    :type :date)
+   (completion-time :accessor completion-time
+		    :initform "unanswered" 
+                    :init-keyword :completion-time 
+                    :type :time)
+   (used-electric-hairdryer :accessor used-electric-hairdryer
+			    :initform "unanswered" 
+			    :init-keyword :used-electric-hairdryer 
+			    :type :yes-or-no)
+   (used-electric-blanket :accessor used-electric-blanket
+			  :initform "unanswered" 
+			  :init-keyword :used-electric-blanket 
+			  :type :yes-or-no)
+   (used-waterbed-heater :accessor used-waterbed-heater
+                    :initform "unanswered" 
+                    :init-keyword :used-waterbed-heater 
+                    :type :yes-or-no)
+   (used-microwave-oven :accessor used-microwave-oven
+                    :initform "unanswered" 
+                    :init-keyword :used-microwave-oven 
+                    :type :yes-or-no)
+   (nausea :accessor nausea
+                    :initform "unanswered" 
+                    :init-keyword :nausea 
+                    :type :none-little-lots)
+   (nausea-activity :accessor nausea-activity
+                    :initform "unanswered" 
+                    :init-keyword :nausea-activity 
+                    :type :no-less-more)
+   (energy :accessor energy
+                    :initform "unanswered" 
+                    :init-keyword :energy 
+                    :type :sluggish-moderate-full)
+   (energy-activity :accessor energy-activity
+                    :initform "unanswered" 
+                    :init-keyword :energy-activity 
+                    :type :no-less-more)
+   (nausea-frequency-vs-recent :accessor nausea-frequency-vs-recent
+                    :initform "unanswered" 
+                    :init-keyword :nausea-frequency-vs-recent 
+                    :type :less-same-more)
+   (nausea-intensity-vs-recent :accessor nausea-intensity-vs-recent
+                    :initform "unanswered" 
+                    :init-keyword :nausea-intensity-vs-recent 
+                    :type :less-same-more)
+   (energy-vs-recent :accessor energy-vs-recent
+                    :initform "unanswered" 
+                    :init-keyword :energy-vs-recent 
+                    :type :less-same-more)
+   (activity-vs-recent :accessor activity-vs-recent
+                    :initform "unanswered" 
+                    :init-keyword :activity-vs-recent 
+                    :type :less-same-more)
+   (bed-time-vs-pregnancy :accessor bed-time-vs-pregnancy
+                    :initform "unanswered" 
+                    :init-keyword :bed-time-vs-pregnancy 
+                    :type :similar-different-cantsay)
+   (home-activities-vs-pregnancy :accessor home-activities-vs-pregnancy
+                    :initform "unanswered" 
+                    :init-keyword :home-activities-vs-pregnancy 
+                    :type :similar-different-cantsay)
+   (work-activities-vs-pregnancy :accessor work-activities-vs-pregnancy
+                    :initform "unanswered" 
+                    :init-keyword :work-activities-vs-pregnancy 
+                    :type :similar-different-cantsay)
+   (travel-vs-pregnancy :accessor travel-vs-pregnancy
+                    :initform "unanswered" 
+                    :init-keyword :travel-vs-pregnancy 
+                    :type :similar-different-cantsay)
+   (other-vs-pregnancy :accessor other-vs-pregnancy
+                    :initform "unanswered" 
+                    :init-keyword :other-vs-pregnancy 
+                    :type :similar-different-cantsay)
+   (differences-vs-pregnancy :accessor difference-vs-pregnancy
+                             :initform '()
+                             :init-keyword :difference-vs-pregnancy
+                             :type :list
+                             :width 50 
+                             :height 15 
+                             :list-spec '((<difference> *)))
+   (willing-to-repeat :accessor willing-to-repeat
+                    :initform "unanswered" 
+                    :init-keyword :willing-to-repeat 
+                    :type :willing-to-repeat)
+   (reasons :accessor reasons
+                    :initform "unanswered" 
+                    :init-keyword :reasons 
+                    :type :string)))
+
+
+(define-method name-of ((object <activity-questions>))
+  (format #f "Activity Questions")) 
+
+(define-method report-name ((object <activity-questions>))
+  (format #f "activity-questions~A" (address-of object)))
+
+;;; <spot-measurements> branch class definition
+
+(define-class <spot-measurements> (<sodet-branch-object>)
+  ((technician            :accessor      technician
+                          :initform     "unanswered"
+                          :init-keyword :technician
+                          :type         :growing-list)
+   (emdex-number          :accessor      emdex-number
+                          :initform     "unanswered"
+                          :init-keyword :emdex-number
+                          :type         :growing-list)
+   (form-date             :accessor      form-date
+			  :initform     "unanswered"
+			  :init-keyword :form-date
+			  :type         :date)
+   (form-time             :accessor      form-time
+                          :initform     "unanswered"
+                          :init-keyword :form-time
+                          :type         :time)
+   (spot-measurements     :accessor      spot-measurements
+                          :initform     '()
+                          :init-keyword :spot-measurements
+                          :type         :list
+                          :width         40
+                          :height        10
+                          :list-spec    '((<spot> *)))
+   (other-room-location   :accessor      other-room-location
+                          :initform     "unanswered"
+                          :init-keyword :other-room-location
+                          :type         :text)
+   (kitchen-location      :accessor      kitchen-location
+                          :initform     "unanswered"
+                          :init-keyword :kitchen-location
+                          :type         :text)
+   (bedroom-location      :accessor      bedroom-location
+                          :initform     "unanswered"
+                          :init-keyword :bedroom-location
+                          :type         :text)
+   (bathroom-location     :accessor      bathroom-location
+                          :initform     "unanswered"
+                          :init-keyword :bathroom-location
+                          :type         :text)
+   (appliances            :accessor      appliances
+                          :initform     '()
+                          :init-keyword :appliances
+                          :type         :list
+                          :width         40
+                          :height        20
+                          :list-spec    '((<appliance> *)))))
+
+
+(define-method name-of ((object <spot-measurements>))
+  (format #f "Spot Measurements")) 
+
+(define-method report-name ((object <spot-measurements>))
+  (format #f "spot-measurements~A" (address-of object)))
+
+   
+
+;;; <diary> branch class definition
+
+(define-class <diary> (<sodet-branch-object>)
+  ((diary-date            :accessor      diary-date
+                          :initform     "unanswered"
+                          :init-keyword :diary-date
+                          :type         :date)
+   (diary-days            :accessor      diary-days
+                          :initform     "unanswered"
+                          :init-keyword :diary-days
+                          :type         :growing-list)
+   (entries               :accessor      entries
+                          :initform     '()
+                          :init-keyword :entries
+                          :type         :list
+                          :width         40
+                          :height        20
+                          :list-spec    '((<entry> *)))
+   ))
+
+(define-method name-of ((object <diary>))
+  (format #f "Diary"))
+
+(define-method report-name ((object <diary>))
+  (format #f "diary~A" (address-of object)))
+
+
+;;; <visit> branch class definition
+
+(define-class <visit> (<sodet-branch-object>)
+  ((subject-number        :accessor      subject-number
+                          :initform     "unanswered"
+                          :init-keyword :subject-number
+                          :type         :integer)
+   (visit-number          :accessor      visit-number
+                          :initform     "unanswered"
+                          :init-keyword :visit-number
+                          :type         :integer)
+   (attachments           :accessor      attachments
+                          :initform     '()
+                          :init-keyword :attachments
+                          :type         :list
+                          :width         20
+                          :height        5
+                          :list-spec    '((<diary> ?)
+                                          (<activity-questions>)
+                                          (<spot-measurements> ?)
+					  (<retrieval-report>)
+					  ))))
+
+(define-method name-of ((object <visit>))
+  (format #f "Visit ~A-~A" 
+          (slot-ref object 'subject-number)
+          (slot-ref object 'visit-number)))
+
+(define-method report-name ((object <visit>))
+  (format #f "visit~A" (address-of object)))
+
+(define-method object<? ((obj1 <visit>) 
+                         (obj2 <visit>))
+  (compare-string-slots obj1 obj2 'subject-number))
+
+
+
+
+(provide "branch-classes")
+
+
+
+
+

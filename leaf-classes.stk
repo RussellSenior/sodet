@@ -1,0 +1,218 @@
+;;;; leaf-classes.stk
+
+(require "stklos")
+
+;;; All instance slots begin with the value "unanswered".  Other universal 
+;;; values are "missing" or "unknown".  Slots may take other values, depending 
+;;; on their type.
+
+;;; <card> leaf class definition
+
+(define-class <entry> (<sodet-leaf-object>)
+  ((entry-time            :accessor      entry-time
+                          :initform     "unanswered"
+                          :init-keyword :entry-time
+                          :type         :datetime)
+   (measurement-number    :accessor      measurement-number
+                          :initform     "unanswered"
+                          :init-keyword :measurement-number
+                          :type         :integer)
+   (entry-recalled        :accessor      entry-recalled
+                          :initform     "unanswered"
+                          :init-keyword :entry-recalled
+                          :type         :yes-or-no)
+   (entry-status          :accessor      entry-status
+                          :initform     "unanswered"
+                          :init-keyword :entry-status
+                          :type         :exposure-status)))
+
+(define-method name-of ((object <entry>))
+  (format #f "Entry ~A ~A" 
+          (slot-ref object 'entry-time)
+          (slot-ref object 'entry-status)))
+
+(define-method report-name ((object <entry>))
+  (format #f "entry~A" (address-of object)))
+
+(define-method object<? ((obj1 <entry>) 
+                         (obj2 <entry>))
+  (compare-string-slots obj1 obj2 'entry-time))
+
+;;; <difference> leaf class definition
+
+(define-class <difference> (<sodet-leaf-object>)
+  ((from-date               :accessor      from-date
+                            :initform     "unanswered"
+                            :init-keyword :from-date
+                            :type         :date)
+   (from-time               :accessor      from-time
+                            :initform     "unanswered"
+                            :init-keyword :from-time
+                            :type         :time)
+   (to-date                 :accessor      to-date
+                            :initform     "unanswered"
+                            :init-keyword :to-date
+                            :type         :date)
+   (to-time                 :accessor      to-time
+                            :initform     "unanswered"
+                            :init-keyword :to-time
+                            :type         :time)
+   (description             :accessor      description
+                            :initform     "unanswered"
+                            :init-keyword :description
+                            :type         :text)
+   (movement                :accessor      movement
+                            :initform     "unanswered"
+                            :init-keyword :movement
+                            :type         :more-or-less)))
+
+(define-method name-of ((object <difference>))
+  (format #f "Difference ~A ~A" 
+          (slot-ref object 'from-time)
+          (slot-ref object 'to-time)))
+
+(define-method report-name ((object <difference>))
+  (format #f "difference~A" (address-of object)))
+
+(define-method object<? ((obj1 <difference>) 
+                         (obj2 <difference>))
+  (compare-string-slots obj1 obj2 'from-time))
+
+
+;;; <spot> leaf class definition
+
+(define-class <spot> (<sodet-leaf-object>)
+  ((description             :accessor      description
+                            :initform     "unanswered"
+                            :init-keyword :description
+                            :type         :growing-list)
+   (magnetic-field          :accessor      magnetic-field
+                            :initform     "unanswered"
+                            :init-keyword :magnetic-field
+                            :type         :magnetic-field)
+   ))
+
+(define-method name-of ((object <spot>))
+  (format #f "Spot ~A (~A mG)" 
+          (slot-ref object 'description)
+	  (slot-ref object 'magnetic-field)))
+
+(define-method report-name ((object <spot>))
+  (format #f "spot~A" (address-of object)))
+
+(define-method object<? ((obj1 <spot>) 
+                         (obj2 <spot>))
+  (compare-string-slots obj1 obj2 'description))
+
+
+;;; <appliance> leaf class definition
+
+(define-class <appliance> (<sodet-leaf-object>)
+  ((appliance               :accessor      appliance
+                            :initform     "unanswered"
+                            :init-keyword :appliance
+                            :type         :growing-list)
+   (room                    :accessor      room
+                            :initform     "unanswered"
+                            :init-keyword :room
+                            :type         :growing-list)
+   (switched                :accessor      switched
+                            :initform     "unanswered"
+                            :init-keyword :switched
+                            :type         :switched)
+   (magnetic-field-3-inches :accessor      magnetic-field-3-inches
+                            :initform     "unanswered"
+                            :init-keyword :magnetic-field-3-inches
+                            :type         :magnetic-field)
+   (magnetic-field-2-feet   :accessor      magnetic-field-2-feet
+                            :initform     "unanswered"
+                            :init-keyword :magnetic-field-2-feet
+                            :type         :magnetic-field)))
+
+(define-method name-of ((object <appliance>))
+  (format #f "Appliance (~A) ~A" 
+	  (slot-ref object 'room)
+          (slot-ref object 'appliance)))
+
+(define-method report-name ((object <appliance>))
+  (format #f "appliance~A" (address-of object)))
+
+(define-method object<? ((obj1 <appliance>) 
+                         (obj2 <appliance>))
+  (compare-string-slots obj1 obj2 'appliance))
+
+
+;;; <retrieval-report> leaf class definition
+
+(define-class <retrieval-report> (<sodet-leaf-object>)
+  ((technician            :accessor      technician
+	                  :initform     "unanswered"
+	                  :init-keyword :technician
+                          :type         :growing-list)
+   (pe-meter              :accessor      pe-meter
+                          :initform     "unanswered"
+	                  :init-keyword :pe-meter
+                          :type         :growing-list)
+   (spot-meter            :accessor      spot-meter
+                          :initform     "unanswered"
+	                  :init-keyword :spot-meter
+                          :type         :growing-list)
+   (retrieve-date         :accessor      retrieve-date
+			  :initform     "unanswered"
+                          :init-keyword :retrieve-date
+			  :type         :date)
+   (retrieve-time         :accessor      retrieve-time
+                          :initform     "unanswered"
+                          :init-keyword :retrieve-time
+                          :type         :time)
+   (comments-pe-general   :accessor      comments-pe-general
+                          :initform     "unanswered"
+                          :init-keyword :comments-pe-general
+                          :type         :text)
+   (comments-pe-diary     :accessor      comments-pe-diary
+                          :initform     "unanswered"
+                          :init-keyword :comments-pe-diary
+                          :type         :text)
+   (comments-pe-emdex     :accessor      comments-pe-emdex
+                          :initform     "unanswered"
+                          :init-keyword :comments-pe-emdex
+                          :type         :text)
+   (comments-pe-data      :accessor      comments-pe-data
+                          :initform     "unanswered"
+                          :init-keyword :comments-pe-data
+                          :type         :text)
+   (comments-pe-other     :accessor      comments-pe-other
+                          :initform     "unanswered"
+                          :init-keyword :comments-pe-other
+                          :type         :text)
+   (comments-spot-general :accessor      comments-spot-general
+                          :initform     "unanswered"
+                          :init-keyword :comments-spot-general
+                          :type         :text)
+   (comments-spot-forms   :accessor      comments-spot-forms
+                          :initform     "unanswered"
+                          :init-keyword :comments-spot-forms
+                          :type         :text)
+   (comments-spot-emdex   :accessor      comments-spot-emdex
+                          :initform     "unanswered"
+                          :init-keyword :comments-spot-emdex
+                          :type         :text)
+   (comments-spot-data    :accessor      comments-spot-data
+                          :initform     "unanswered"
+                          :init-keyword :comments-spot-data
+                          :type         :text)
+   (comments-enterer      :accessor      comments-enterer
+                          :initform     "unanswered"
+                          :init-keyword :comments-enterer
+                          :type         :text)))
+
+
+(define-method name-of ((object <retrieval-report>))
+  (format #f "Retrieval-Report")) 
+
+(define-method report-name ((object <retrieval-report>))
+  (format #f "retrieval-report~A" (address-of object)))
+
+
+
+(provide "leaf-classes")

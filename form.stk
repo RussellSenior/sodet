@@ -1,0 +1,451 @@
+(require "stklos")
+(require "Tk-classes")
+(require "container")
+
+(define edit-object-stack '())
+
+(define (edit-object object)
+  (let ((class (class-name (class-of object))))
+    (if (not (member class edit-object-stack))
+        (let ((group (make <Field-group> 
+                           :delegate object
+                           :title (name-of object)
+                           :geometry "+200+50")))
+          (set! edit-object-stack (cons class edit-object-stack))
+          (when (edit-object-affirmed? object) 
+                (update-fields group))
+          (destroy group)
+          (set! edit-object-stack (list-without class edit-object-stack))
+          object)
+        #f)))
+
+(define-class <Field-group> (<Toplevel>)
+  ((delegate :init-keyword :delegate)
+   (field-widgets :initform '())))
+
+(define-method update-fields ((object <Field-group>))
+  (map (lambda (field)
+         (sodet-slot-set (slot-ref object 'delegate)
+                        (string->symbol (title field))
+                        (retrieve-value field)))
+       (slot-ref object 'field-widgets)))
+
+(define-method retrieve-value ((field <Choice-box>))
+  (value field))
+
+(define-method retrieve-value ((field <Container>))
+  (value field))
+
+(define-method initialize ((object <Field-group>) initargs)
+  (next-method)
+  
+  (let ((field-frame (make <Frame> :parent object)))
+    (let* ((delegate (slot-ref object 'delegate))
+           (class (class-of delegate))
+           (slots (class-slots class))
+           (field-list '()))
+      
+      (for-each
+       (lambda (s)
+         (let ((field (make-sodet-field delegate s field-frame object)))
+           (if field (set! field-list (cons field field-list)))))
+       (reverse slots))
+      
+      (map (lambda (field)
+             (pack field :anchor "e"))
+           field-list)
+      
+      (slot-set! object 'field-widgets field-list)
+      (pack field-frame)
+      (let ((commit-frame (make-commit-frame delegate object)))
+        (pack commit-frame)))))
+
+
+(define-method make-commit-frame ((object <sodet-leaf-object>) fgroup)
+  (let ((commit-frame (make <Frame> :parent fgroup))
+        (wait (affirm-var (slot-ref fgroup 'delegate))))
+    (let ((ok (make <Button>
+                    :parent commit-frame
+                    :text "Ok"
+                    :command `(set! ,wait #t)))
+          (dismiss (make <Button>
+                         :parent commit-frame
+                         :text "Cancel"
+                         :command `(set! ,wait #f))))
+      (pack ok dismiss 
+            :side "left" 
+            :padx 5 :pady 2 
+            :ipadx 10 :ipady 2 
+            :fill 'x))
+    commit-frame))
+
+(define-method make-commit-frame ((object <sodet-branch-object>) fgroup)
+  (let ((commit-frame (make <Frame> :parent fgroup))
+        (wait (affirm-var (slot-ref fgroup 'delegate))))
+    (let ((ok (make <Button>
+                    :parent commit-frame
+                    :text "Ok"
+                    :command `(set! ,wait #t))))
+      
+      (pack ok
+            :side "left"
+            :padx 5 :pady 2
+            :ipadx 10 :ipady 2
+            :fill 'x))
+    commit-frame))
+
+(define-method make-commit-frame ((object <database>) fgroup)
+  (let ((commit-frame (make <Frame> :parent fgroup))
+        (wait (affirm-var (slot-ref fgroup 'delegate))))
+    (let ((ok (make <Button>
+                    :parent commit-frame
+                    :text "Ok"
+                    :command `(set! ,wait #t)))
+          (save (make <Button>
+                      :parent commit-frame
+                      :text "Save"
+                      :command (lambda ()
+                                 (update-fields fgroup)
+                                 (with-output-to-file data-filename save-data)))))
+      (pack ok save
+            :side "left"
+            :padx 5 :pady 2
+            :ipadx 10 :ipady 2
+            :fill 'x))
+    commit-frame))
+
+(define-method focus-next-choicebox ((fg <Field-group>) (cb <Choice-box>))
+  (let* ((fw (slot-ref fg 'field-widgets))
+         (mb (memq cb fw)))
+    (let loop ((start mb))
+      (let ((next (if (and start 
+                           (not (null? (cdr start))))
+                      (cdr start)
+                      fw)))
+        (if (eqv? (class-of (car next)) <Choice-box>)
+            (focus (Id (entry-of (lentry-of (car next)))))
+            (loop next))))))
+
+(define *default-values* '("not applicable"
+                           "unavailable"
+                           "unresolved"
+                           "unanswered"))
+
+(define (list-without element list)
+  (let ((result '())
+        (compare (if (string? element)
+                     string=?
+                     eq?)))
+    (for-each
+     (lambda (e)
+       (unless (compare element e)
+               (set! result (cons e result))))
+     list)
+    (reverse result)))
+
+
+(define (make-sodet-field instance slot parent field-group)
+  (let ((type (get-keyword :type (cdr slot) #f))
+        (slot-sym (car slot)))
+    (cond ((equal? type :list)
+           (let* ((width (get-keyword :width (cdr slot) 20))
+                  (height (get-keyword :height (cdr slot) 10))
+                  (field (make <Container>
+                               :parent parent
+                               :title (symbol->string slot-sym)
+                               :value (slot-ref instance slot-sym)
+                               :width width
+                               :height height
+                               :selectmode 'extended
+                               :item-list (cadr 
+                                           (get-keyword :list-spec 
+                                                        (cdr slot) 
+                                                        #f)))))
+             
+             (let ((m (menu-of field)))
+               (for-each
+                (lambda (lso)
+                  (unless (null? (cdr lso))
+                          (let ((class (car lso)))
+                            (menu-add m
+                                      'command
+                                      :label (symbol->string class)
+                                      :command 
+                                      (lambda ()
+                                        (let ((o (make (eval class))))
+                                          (edit-object o)
+                                          (when (affirmed? o)
+                                                (insert-element field o))))))))
+                
+                (slot-ref field 'item-list))
+               
+               (menu-add m 'separator)
+               (menu-add m 'command :label " Delete " 
+                         :command (lambda () 
+                                    (remove-object field)))
+               
+               (bind (listbox-of field) 
+                     "<Double-1>" 
+                     (lambda ()
+                       (select-object field)))
+               )
+             
+             (let ((contents (slot-ref field 'value)))
+               (slot-set! field 'value '())
+               (for-each
+                (lambda (vo)
+                  (insert-element field vo))
+                (reverse contents)))
+             
+             field))
+          
+          (else 
+           (let* ((initial (slot-ref instance slot-sym))
+                  (field (make <Choice-box>
+                               :parent parent
+                               :title (symbol->string slot-sym)
+                               :value initial))
+                  (label (label-of (lentry-of field))))
+             
+             (let* ((entry (entry-of field)))
+;                    (bs-closure (car (bind "Entry" "<BackSpace>"))))
+               
+               (bind entry 
+                     "<Return>" 
+                     (lambda ()
+                       (focus-next-choicebox field-group field)))
+               
+;                (bind entry 
+;                      "<Delete>" 
+;                      (lambda (|W|) 
+;                        (bs-closure |W|)
+;                        'break))
+               
+               (bind entry 
+                     "<Tab>" 
+                     (lambda ()
+                       (focus-next-choicebox field-group field)
+                       'break))
+               
+               (bind entry 
+                     "<Alt-d>"
+                     (lambda ()
+                       (let ((id (slot-ref entry 'Id)))
+                         (id 'delete 0 'end)
+                         (focus id))))
+               
+               (bind entry 
+                     "<3>" 
+                     (lambda ()
+                       (let ((id (slot-ref entry 'Id)))
+                         (id 'delete 0 'end)
+                         (focus id)))))
+               
+             (add-choice field initial)
+             (slot-set! label 'foreground "darkgreen")
+             (case type
+               ((:growing-list)
+                
+                (let ((lov (sodet-slot-list (class-of instance) slot-sym)))
+                  (slot-set! label 'foreground "red")
+                  (for-each
+                   (lambda (v)
+                     (add-choice field v))
+                   (sort (list-without initial lov) 
+                         (lambda (e1 e2) 
+                           (string-ci<? e1 e2))))))
+               ((:yes-or-no)
+                (for-each
+                 (lambda (v)
+                   (add-choice field v))
+                 (list-without initial '("no" 
+                                         "yes"
+                                         ))))
+               ((:exposure-status)
+                (for-each
+                 (lambda (v)
+                   (add-choice field v))
+                 (list-without initial '("home"
+                                         "in-bed"
+                                         "travel"
+                                         "work"
+                                         "other"
+                                         "not-worn"))))
+               ((:none-little-lots)
+                (for-each
+                 (lambda (v)
+                   (add-choice field v))
+                 (list-without initial '("not at all"
+                                         "a little"
+                                         "very"))))
+
+               ((:no-less-more)
+                (for-each
+                 (lambda (v)
+                   (add-choice field v))
+                 (list-without initial '("no"
+                                         "yes, less"
+                                         "yes, more"))))
+
+               ((:sluggish-moderate-full)
+                (for-each
+                 (lambda (v)
+                   (add-choice field v))
+                 (list-without initial '("sluggish"
+                                         "moderately energized"
+                                         "full of energy"))))
+
+               ((:less-same-more)
+                (for-each
+                 (lambda (v)
+                   (add-choice field v))
+                 (list-without initial '("less"
+                                         "same"
+                                         "more"))))
+
+               ((:similar-different-cantsay)
+                (for-each
+                 (lambda (v)
+                   (add-choice field v))
+                 (list-without initial '("fairly similar"
+                                         "quite different, less"
+                                         "quite different, more"
+                                         "quite different, can't say"
+                                         "can't say"))))
+
+               ((:willing-to-repeat)
+                (for-each
+                 (lambda (v)
+                   (add-choice field v))
+                 (list-without initial '("yes, meter/diary only"
+                                         "yes, meter/diary and home"
+                                         "no"))))
+
+               ((:more-or-less)
+                (for-each
+                 (lambda (v)
+                   (add-choice field v))
+                 (list-without initial '("more"
+                                         "less"))))
+
+               ((:switched)
+                (for-each
+                 (lambda (v)
+                   (add-choice field v))
+                 (list-without initial '("on"
+                                         "off"))))
+                                         
+
+               ((:yes-no-or-both)
+                (for-each
+                 (lambda (v)
+                   (add-choice field v))
+                 (list-without initial '("no" 
+                                         "yes"
+                                         "both"
+                                         ))))
+               ((:in-vault)
+                (for-each
+                 (lambda (v)
+                   (add-choice field v))
+                 (list-without initial '("no" 
+                                         "yes"
+                                         "both"
+                                         "not worn, no"
+                                         "not worn, yes"
+                                         "not worn, both"
+                                         "saturated"
+                                         ))))
+               ((:delta-or-wye)
+                (for-each
+                 (lambda (v)
+                   (add-choice field v))
+                 (list-without initial '("delta-wye"
+                                         "wye-wye"
+                                         ))))
+               ((:vault-area)
+                (for-each
+                 (lambda (v)
+                   (add-choice field v))
+                 (list-without initial '("downtown"
+                                         "first hill"
+                                         "university district"))))
+               ((:vault-type)
+                (for-each
+                 (lambda (v)
+                   (add-choice field v))
+                 (list-without initial '("street vault"
+                                         "building grid vault"
+                                         "building spot vault"
+                                         "manhole"
+                                         "handhole"))))
+               ((:primary-voltage)
+                (for-each
+                 (lambda (v)
+                   (add-choice field v))
+                 (list-without initial '("13.8 kV"
+                                         "26 kV"))))
+               ((:secondary-voltage)
+                (for-each
+                 (lambda (v)
+                   (add-choice field v))
+                 (list-without initial '("208 V"
+                                         "480 V"))))
+               ((:primary-or-secondary)
+                (for-each
+                 (lambda (v)
+                   (add-choice field v))
+                 (list-without initial '("primary"
+                                         "secondary"))))
+               ((:crew-type)
+                (for-each
+                 (lambda (v)
+                   (add-choice field v))
+                 (list-without initial '("regular"
+                                         "network protector"
+                                         "vactor"
+                                         "pump"
+                                         ))))
+               ((:task-category)
+                (for-each
+                 (lambda (v)
+                   (add-choice field v))
+                 (list-without initial '("change vault"
+                                         "change network transformer"
+                                         "change primary"
+                                         "change secondary"
+                                         "change: other"
+                                         "inspection/cleaning"
+                                         "testing network protector"
+                                         "repair/replace/test other"
+                                         "transformer maintenance"
+                                         "maintenance: other"
+                                         ))))
+               ((:job-title)
+                (for-each
+                 (lambda (v)
+                   (add-choice field v))
+                 (list-without initial '("reference"
+                                         "working crew chief"
+                                         "temporary working crew chief"
+                                         "cable splicer"
+                                         "cable splicer apprentice"
+                                         "material supplier"
+                                         ))))
+               
+               (else (slot-set! label 'foreground "blue"))
+               )
+             (for-each
+              (lambda (v)
+                (add-choice field v))
+              (list-without initial *default-values*))
+             field)))))
+
+
+(define-method add-choice ((self <Choice-box>) mess)
+  (menu-add (menu-of self) 'command
+            :label mess
+            :command (lambda ()
+                       (set! (value self) mess))))
+
+(provide "form")

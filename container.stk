@@ -1,0 +1,133 @@
+;;;; container.stk
+
+(require "stklos")
+(require "Tk-classes")
+
+(define-class <Container> (<Tk-composite-widget>)
+  ((label      :accessor label-of)
+   (menu       :accessor menu-of)
+   (menubutton :accessor menubutton-of)
+   (scrollbox  :accessor scrollbox-of)
+   (listbox    :accessor listbox-of)
+   (value      :accessor value
+               :initform '()
+               :init-keyword :value)
+   (item-list  :accessor item-list
+               :init-keyword :item-list)
+
+   (title      :accessor title
+               :init-keyword :title
+               :allocation :propagated
+               :propagate-to ((label text)))
+   (select-mode :accessor select-mode
+               :init-keyword :selectmode
+               :allocation :propagated
+               :propagate-to (listbox))
+   (width      :accessor width
+               :init-keyword :width
+               :allocation :propagated
+               :propagate-to (listbox))
+   (height     :accessor height
+               :init-keyword :height
+               :allocation :propagated
+               :propagate-to (listbox))
+   ))
+
+(define-method initialize-composite-widget ((self <Container>) initargs parent)
+  (let* ((l (make <Label> :parent parent))
+         (sb (make <Scroll-Listbox> :parent parent))
+         (mb (make <Menu-button> :parent parent
+                   :text ""
+                   :relief "flat"
+                   :indicator-on #t
+                   :relief "raised"))
+;                   :bitmap (& "@" *STk-library* "/images/menu.bm")))
+         (m (make <Menu> :parent mb)))
+
+    (pack l sb :side "left" :anchor "nw" :pady 5 :fill "x" :expand #t)
+    (pack mb :side "right" :anchor "ne" :padx 5 :pady 5)
+
+    (slot-set! self 'label l)
+    (slot-set! self 'scrollbox sb)
+    (slot-set! self 'listbox (listbox-of sb))
+    (slot-set! self 'menu  m)
+    (slot-set! self 'menubutton mb)
+
+    (set! (menu-of mb) m)))
+
+(define-method insert-element ((self <Container>) object)
+  (let ((offset (list-offset self object))
+        (list (slot-ref self 'value)))
+    (insert (scrollbox-of self) offset (name-of object))
+    (slot-set! self 'value (insert-object-at object list offset)))
+  (update-menu self))
+
+(define-method delete-element ((self <Container>) offset)
+  (let* ((list-spec (slot-ref self 'item-list))
+         (object (list-ref (slot-ref self 'value) offset))
+         (occurrence-indicator (assv (class-name (class-of object)) list-spec)))
+    (unless (null? (cdr occurrence-indicator))
+            (slot-set! self 'value (delete-object-at (slot-ref self 'value) offset))
+            (delete (scrollbox-of self) offset)
+            (update-menu self))))
+
+(define-method update-element ((self <Container>) object offset)
+  (slot-set! self 'value (delete-object-at (slot-ref self 'value) offset))
+  (delete (scrollbox-of self) offset)
+  (let ((offset (list-offset self object)))
+    (insert (scrollbox-of self) offset (name-of object))
+    (slot-set! self 'value (insert-object-at object (slot-ref self 'value) offset))))
+
+(define-method update-menu ((self <Container>))
+  (let* ((list-spec (slot-ref self 'item-list))
+         (m (menu-of self))
+         (index 1)
+         (contents (map (lambda (o) (class-name (class-of o))) 
+                        (slot-ref self 'value))))
+    (for-each
+     (lambda (lso)
+       (let ((class-name (car lso))
+             (occurrence-indicator (cdr lso)))
+         (unless (null? occurrence-indicator)
+                 (when (eqv? (car occurrence-indicator) '?) 
+                       (if (memv class-name contents)
+                           (disable m index)
+                           (enable m index)))
+                 (set! index (+ index 1)))))
+     list-spec)))
+
+
+
+(define-method list-offset ((self <Container>) object)
+  (let loop ((contents (slot-ref self 'value))
+             (index 0))
+    (if (null? contents)
+        'end
+        (let ((result (object<? object (car contents))))
+          (if result
+              index
+              (loop (cdr contents) (+ 1 index)))))))
+
+(define-method select-object ((self <Container>))
+  (let* ((lb (listbox-of self))
+         (sel (current-selection lb)))
+    (when sel
+          (when (list? sel)
+                (set! sel (car sel)))
+          (let ((o (list-ref (value self) sel)))
+            (edit-object o)
+            (when (affirmed? o)
+                  (update-element self o sel))))))
+
+(define-method remove-object ((self <Container>))
+  (let* ((lb (listbox-of self))
+         (sel (current-selection lb)))
+    (when sel 
+          (if (list? sel)
+              (for-each
+               (lambda (s)
+                 (delete-element self s))
+               (reverse sel)) ; to avoid deleting the wrong objects
+              (delete-element self sel)))))
+
+(provide "container")
